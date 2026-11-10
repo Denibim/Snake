@@ -1,16 +1,18 @@
 {
+  "id": "./index.html",
   "name": "Snake Arena",
-  "short_name": "Snake Arena",
+  "short_name": "Snake",
   "description": "Game ular offline: makan, tumbuh, dan bertahan dari ular musuh.",
   "start_url": "./index.html",
   "scope": "./",
-  "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#06060d",
   "theme_color": "#06060d",
   "lang": "id",
   "categories": ["games"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon-192.png",
