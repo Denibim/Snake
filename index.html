@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Snake Arena</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+        body {
+            margin: 0; padding: 0;
+            background-color: #0b0b0f;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        .hud {
+            position: absolute; top: 15px;
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(18, 19, 28, 0.85);
+            padding: 6px 14px; border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 13px; font-weight: 600; z-index: 10;
+        }
+        .hud-item { display: flex; align-items: center; gap: 3px; }
+        .btn-pause {
+            background: rgba(255, 255, 255, 0.1);
+            border: none; color: white;
+            width: 28px; height: 28px;
+            border-radius: 50%; font-size: 12px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .btn-pause:active { background: rgba(255, 255, 255, 0.3); }
+        canvas {
+            background-color: #12131c;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            border-radius: 12px; touch-action: none;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* kanvas game layar penuh: sudut membulat dan bayangan tidak perlu, dan memberatkan */
+        #gameCanvas { display: block; border-radius: 0; box-shadow: none; }
+        #game-over-modal, #level-up-modal, #pause-modal {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(11, 11, 15, 0.85);
+            backdrop-filter: blur(5px);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 20; display: none;
+        }
+        .modal-content {
+            background: #1a1b26;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 30px; border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            width: 80%; max-width: 300px;
+        }
+        .modal-content h2 { margin: 0 0 10px 0; color: #00d2d3; font-size: 24px; }
+        .modal-content p { color: #a4b0be; margin: 0 0 20px 0; font-size: 15px; }
+        .btn-action {
+            background: linear-gradient(135deg, #00d2d3, #01a3a4);
+            color: white; border: none;
+            padding: 12px 30px; font-size: 16px; font-weight: bold;
+            border-radius: 25px; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 210, 211, 0.4);
+            width: 100%; margin-top: 8px;
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+        }
+
+        /* ===================== HALAMAN MENU UTAMA ===================== */
+        #menu {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 30; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            background: #06060d;
+            display: none; justify-content: center;
+            --aksen: #00d2d3; --aksen2: #8250ff;
+            --glow1: rgba(0, 210, 211, 0.28); --glow2: rgba(130, 80, 255, 0.28);
+        }
+        #menu[data-latar="planet"] {
+            --aksen: #ffb347; --aksen2: #ff6b3d;
+            --glow1: rgba(255, 179, 71, 0.28); --glow2: rgba(255, 107, 61, 0.26);
+        }
+        #menu::before {
+            content: ""; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 15% 10%, var(--glow1), transparent 55%),
+                radial-gradient(circle at 90% 55%, var(--glow2), transparent 55%),
+                radial-gradient(circle at 30% 100%, var(--glow1), transparent 50%);
+            animation: napas 6s ease-in-out infinite alternate;
+        }
+        #menu::after {
+            content: ""; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; opacity: 0.6;
+            background-image:
+                radial-gradient(1.5px 1.5px at 20px 40px, #ffffff, transparent),
+                radial-gradient(1px 1px at 90px 120px, #ffffff, transparent),
+                radial-gradient(1.5px 1.5px at 160px 60px, #9fd8ff, transparent),
+                radial-gradient(1px 1px at 230px 180px, #ffffff, transparent),
+                radial-gradient(1px 1px at 60px 210px, #ffe9a8, transparent);
+            background-size: 260px 260px;
+            animation: kelip 3.5s ease-in-out infinite alternate;
+        }
+        @keyframes napas { from { opacity: 0.55; } to { opacity: 1; } }
+        @keyframes kelip { from { opacity: 0.25; } to { opacity: 0.75; } }
+        @keyframes goyang {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-5px) rotate(2deg); }
+        }
+        @keyframes denyut {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+
+        .menu-isi {
+            position: relative; z-index: 1;
+            width: 100%; max-width: 440px;
+            padding: 16px 14px 150px 14px;
+        }
+        .menu-kepala { text-align: center; padding-top: 6px; }
+        .maskot {
+            display: block; margin: 0 auto 4px auto;
+            filter: drop-shadow(0 0 12px var(--aksen));
+            animation: goyang 3s ease-in-out infinite;
+            will-change: transform;
+        }
+        .menu-kepala h1 {
+            margin: 0; font-size: 34px; font-weight: 900; letter-spacing: 3px;
+            background: linear-gradient(90deg, #ffffff, var(--aksen));
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .menu-kepala h1 span {
+            background: linear-gradient(90deg, var(--aksen), var(--aksen2));
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .tagline { margin: 4px 0 8px 0; font-size: 13px; color: #aab3c8; letter-spacing: 2px; }
+        .lencana-rekor {
+            display: inline-block; font-size: 13px; padding: 4px 14px; border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .panel {
+            margin-top: 14px; padding: 14px; border-radius: 18px;
+            background: rgba(20, 21, 34, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .panel h3 {
+            margin: 0 0 10px 0; font-size: 13px; letter-spacing: 1.5px;
+            text-transform: uppercase; color: #d5dcec;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .panel h3 i {
+            font-style: normal; width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 800; color: #06060d;
+            background: linear-gradient(135deg, var(--aksen), var(--aksen2));
+        }
+
+        .nama-baris { display: flex; gap: 8px; align-items: center; }
+        .avatar {
+            width: 44px; height: 44px; border-radius: 50%; font-size: 22px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--glow1), var(--glow2));
+            border: 2px solid var(--aksen);
+        }
+        #menu input {
+            flex: 1; min-width: 0; height: 44px; padding: 0 12px;
+            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.07); color: #ffffff;
+            font-size: 16px; font-weight: 700; outline: none;
+            -webkit-user-select: text; user-select: text;
+        }
+        #menu input:focus { border-color: var(--aksen); box-shadow: 0 0 0 3px var(--glow1); }
+        .btn-kecil {
+            width: 44px; height: 44px; border-radius: 12px; border: none; flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1); font-size: 20px; cursor: pointer; color: #fff;
+        }
+        .btn-kecil:active { background: rgba(255, 255, 255, 0.25); }
+        .petunjuk { margin-top: 8px; font-size: 12px; color: #8f98ad; }
+
+        #menu canvas {
+            width: 100%; height: auto; display: block;
+            border-radius: 0; box-shadow: none; background: transparent;
+            touch-action: pan-y;
+        }
+        .kartu-latar {
+            margin-bottom: 10px; border-radius: 16px; overflow: hidden; cursor: pointer;
+            background: #0c0d18; border: 2px solid rgba(255, 255, 255, 0.12);
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+        .kartu-latar.aktif {
+            border-color: var(--aksen);
+            box-shadow: 0 0 0 1px var(--aksen), 0 0 24px var(--glow1);
+            transform: scale(1.01);
+        }
+        .kartu-info {
+            padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        }
+        .kartu-info b { font-size: 15px; display: block; }
+        .kartu-info small { display: block; color: #9aa3b8; font-size: 12px; margin-top: 2px; }
+        .tag-baris { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
+        .tag {
+            font-size: 11px; padding: 2px 8px; border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08); color: #cfd6e6;
+        }
+        .centang {
+            width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+            border: 2px solid rgba(255, 255, 255, 0.25); color: transparent;
+            display: flex; align-items: center; justify-content: center; font-weight: 800;
+        }
+        .kartu-latar.aktif .centang { background: var(--aksen); border-color: var(--aksen); color: #06060d; }
+
+        .label-kecil { font-size: 12px; color: #9aa3b8; margin: 12px 0 6px 0; }
+        .label-kecil:first-of-type { margin-top: 0; }
+        .pilihan { display: grid; gap: 8px; }
+        .pilihan.dua { grid-template-columns: repeat(2, 1fr); }
+        .pilihan.tiga { grid-template-columns: repeat(3, 1fr); }
+        .chip {
+            padding: 10px 4px; border-radius: 14px; text-align: center; cursor: pointer;
+            background: rgba(255, 255, 255, 0.06); border: 2px solid transparent;
+            font-size: 13px; font-weight: 700; transition: all 0.2s;
+        }
+        .chip .ikon { display: block; font-size: 22px; margin-bottom: 2px; }
+        .chip small { display: block; font-weight: 400; font-size: 11px; color: #9aa3b8; margin-top: 2px; }
+        .chip.aktif {
+            border-color: var(--aksen);
+            background: linear-gradient(135deg, var(--glow1), var(--glow2));
+            box-shadow: 0 0 14px var(--glow1);
+        }
+        .baris-saklar {
+            margin-top: 12px; padding: 10px 12px; border-radius: 14px;
+            background: rgba(255, 255, 255, 0.06);
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .baris-saklar small { display: block; font-weight: 400; font-size: 11px; color: #9aa3b8; }
+        .saklar {
+            width: 48px; height: 26px; border-radius: 13px; position: relative; flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.2); transition: background 0.2s;
+        }
+        .saklar::after {
+            content: ""; position: absolute; top: 3px; left: 3px;
+            width: 20px; height: 20px; border-radius: 50%; background: #ffffff; transition: left 0.2s;
+        }
+        .saklar.nyala { background: var(--aksen); }
+        .saklar.nyala::after { left: 25px; }
+
+        .bar-mulai {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 3;
+            padding: 24px 14px 16px 14px;
+            background: linear-gradient(to top, #06060d 65%, rgba(6, 6, 13, 0));
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .ringkasan { font-size: 12px; color: #9aa3b8; margin-bottom: 8px; text-align: center; }
+        .tombol-mulai {
+            width: 100%; max-width: 412px; padding: 15px; border: none; border-radius: 30px;
+            font-size: 18px; font-weight: 900; letter-spacing: 1.5px; color: #06060d; cursor: pointer;
+            background: linear-gradient(135deg, var(--aksen), var(--aksen2));
+            box-shadow: 0 6px 26px var(--glow1), 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+            animation: denyut 1.8s ease-in-out infinite;
+        }
+        .tombol-mulai:active { filter: brightness(1.15); }
+    </style>
+</head>
+<body>
+
+    <div class="hud">
+        <div class="hud-item">⭐ Lv.<span id="level">1</span></div>
+        <div class="hud-item"><span id="food-icon">🍎</span> <span id="score">0</span>/<span id="target">3</span></div>
+        <div class="hud-item">🏆 <span id="highscore">0</span></div>
+        <button class="btn-pause" id="btn-suara" onclick="gantiSuara()">🔊</button>
+        <button class="btn-pause" onclick="togglePause()">⏸</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="game-over-modal">
+        <div class="modal-content">
+            <h2 style="color: #ff4757;">GAME OVER</h2>
+            <p id="final-nama" style="margin-bottom: 4px; color: #ffffff; font-weight: 600;"></p>
+            <p>Skor Akhir: <span id="final-score">0</span></p>
+            <button class="btn-action" onclick="resetGame()">Main Lagi</button>
+            <button class="btn-action btn-secondary" onclick="kembaliKeMenu()">Menu Utama</button>
+        </div>
+    </div>
+
+    <div id="level-up-modal">
+        <div class="modal-content">
+            <h2>LEVEL UP!</h2>
+            <p>Bersiap ke Level <span id="next-level">2</span></p>
+            <p id="info-musuh" style="color: #ff6b6b; font-size: 14px; margin-top: -10px;"></p>
+            <button class="btn-action" onclick="resumeNextLevel()">Lanjut</button>
+        </div>
+    </div>
+
+    <div id="pause-modal">
+        <div class="modal-content">
+            <h2>GAME PAUSED</h2>
+            <p>Permainan dijeda</p>
+            <button class="btn-action" onclick="togglePause()">Lanjutkan</button>
+            <button class="btn-action btn-secondary" onclick="resetGameFromPause()">Ulangi Dari Awal</button>
+            <button class="btn-action btn-secondary" onclick="kembaliKeMenu()">Menu Utama</button>
+        </div>
+    </div>
+
+    <!-- ===================== HALAMAN MENU UTAMA ===================== -->
+    <div id="menu" data-latar="neon">
+        <div class="menu-isi">
+
+            <header class="menu-kepala">
+                <svg class="maskot" viewBox="0 0 150 70" width="150" height="70" aria-hidden="true">
+                    <circle cx="18" cy="52" r="8" fill="#e6efff" stroke="#b9c9ee" stroke-width="1"/>
+                    <circle cx="36" cy="47" r="9.5" fill="#e6efff" stroke="#b9c9ee" stroke-width="1"/>
+                    <circle cx="55" cy="41" r="10.5" fill="#eef4ff" stroke="#b9c9ee" stroke-width="1"/>
+                    <circle cx="75" cy="34" r="11.5" fill="#eef4ff" stroke="#b9c9ee" stroke-width="1"/>
+                    <circle cx="96" cy="26" r="12.5" fill="#f4f8ff" stroke="#b9c9ee" stroke-width="1"/>
+                    <circle cx="118" cy="20" r="15" fill="#fbfdff"/>
+                    <circle cx="124.7" cy="23.3" r="5.2" fill="#ffffff" stroke="#23a6d3" stroke-width="1.5"/>
+                    <circle cx="120.7" cy="13.1" r="5.2" fill="#ffffff" stroke="#23a6d3" stroke-width="1.5"/>
+                    <circle cx="126.4" cy="22.6" r="2.6" fill="#000000"/>
+                    <circle cx="122.4" cy="12.4" r="2.6" fill="#000000"/>
+                    <ellipse cx="128.5" cy="15.8" rx="2.5" ry="5" fill="#000000" transform="rotate(-21.7 128.5 15.8)"/>
+                </svg>
+                <h1>SNAKE <span>ARENA</span></h1>
+                <p class="tagline">MAKAN • TUMBUH • BERTAHAN</p>
+                <div class="lencana-rekor">🏆 Rekor kamu: <b id="menu-rekor">0</b></div>
+            </header>
+
+            <section class="panel">
+                <h3><i>1</i> Nama Pemain</h3>
+                <div class="nama-baris">
+                    <div class="avatar">🐍</div>
+                    <input id="input-nama" type="text" maxlength="12" placeholder="Ketik namamu" autocomplete="off" oninput="ubahNama()">
+                    <button class="btn-kecil" onclick="acakNama()" aria-label="Acak nama">🎲</button>
+                </div>
+                <div class="petunjuk">Namamu tampil di atas ularmu saat bermain. Tekan 🎲 untuk nama acak.</div>
+            </section>
+
+            <section class="panel">
+                <h3><i>2</i> Pilih Latar</h3>
+
+                <div class="kartu-latar" id="kartu-neon" onclick="pilihLatar('neon')">
+                    <canvas id="pratinjau-neon" width="320" height="150"></canvas>
+                    <div class="kartu-info">
+                        <div>
+                            <b>Lantai Neon</b>
+                            <small>Arena gelap dengan cahaya warna-warni dan tepi cyan menyala</small>
+                            <div class="tag-baris"><span class="tag">Rintangan: kotak batu</span><span class="tag">Klasik</span></div>
+                        </div>
+                        <span class="centang">✓</span>
+                    </div>
+                </div>
+
+                <div class="kartu-latar" id="kartu-planet" onclick="pilihLatar('planet')">
+                    <canvas id="pratinjau-planet" width="320" height="150"></canvas>
+                    <div class="kartu-info">
+                        <div>
+                            <b>Planet Raksasa</b>
+                            <small>Planet bercincin, matahari menyilaukan, dan sabuk asteroid</small>
+                            <div class="tag-baris"><span class="tag">Rintangan: asteroid</span><span class="tag">Luar angkasa</span></div>
+                        </div>
+                        <span class="centang">✓</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <h3><i>3</i> Mode Permainan</h3>
+
+                <div class="label-kecil">Jenis permainan</div>
+                <div class="pilihan dua">
+                    <div class="chip" id="mode-klasik" onclick="pilihMode('klasik')"><span class="ikon">🌱</span>Klasik<small>Tanpa ular musuh</small></div>
+                    <div class="chip" id="mode-arena" onclick="pilihMode('arena')"><span class="ikon">⚔️</span>Arena<small>Lawan bot, makin banyak</small></div>
+                </div>
+
+                <div class="label-kecil">Kecepatan awal</div>
+                <div class="pilihan tiga">
+                    <div class="chip" id="kec-santai" onclick="pilihKecepatan('santai')"><span class="ikon">🐢</span>Santai<small>Pelan</small></div>
+                    <div class="chip" id="kec-normal" onclick="pilihKecepatan('normal')"><span class="ikon">🐍</span>Normal<small>Seimbang</small></div>
+                    <div class="chip" id="kec-cepat" onclick="pilihKecepatan('cepat')"><span class="ikon">⚡</span>Cepat<small>Menantang</small></div>
+                </div>
+
+                <div class="baris-saklar" onclick="gantiSuara(); segarkanMenu();">
+                    <div>🔊 Suara<small>Efek suara makan, belok, dan level</small></div>
+                    <div class="saklar" id="saklar-suara"></div>
+                </div>
+            </section>
+
+        </div>
+
+        <div class="bar-mulai">
+            <div class="ringkasan" id="ringkasan"></div>
+            <button class="tombol-mulai" onclick="mulaiGame()">▶ MAIN SEKARANG</button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const gridSize = 20;
+    const worldWidth = 2400;  
+    const worldHeight = 2400; 
+    const tileCountX = worldWidth / gridSize;
+    const tileCountY = worldHeight / gridSize;
+
+    let snake = [];
+    let dx = 1;
+    let dy = 0;
+
+    let arahTerakhir = { dx: 1, dy: 0 };
+    let antreanArah = [];
+
+    let enemies = [];   
+    let foods = []; 
+    const maxFoods = 6;
+
+    let obstacles = [];
+
+    let score = 0;        
+    let totalSkor = 0;    
+    let level = 1;
+    let targetScore = 2;
+    let highScore = bacaRekor();
+    // ===== LOOP GAME YANG HALUS =====
+    let loopJalan = false;            // true saat game sedang berjalan
+    let akumulator = 0;               // waktu yang terkumpul menuju langkah berikutnya
+    let waktuFrameTerakhir = 0;
+    let snakeSebelum = [];            // posisi ular sebelum langkah terakhir (untuk gerakan halus)
+    let musuhSebelum = [];            // posisi tiap ular musuh sebelum langkah terakhir
+    let vigGrad = null;               // gradasi bayangan pinggir layar (dibuat sekali)
+    let gameSpeed = 180; 
+    let isGameOver = false;
+    let isPaused = false;
+    let isLevelUp = false;
+
+    // ===== PENGATURAN DARI HALAMAN MENU =====
+    let diMenu = true;                 // true = sedang berada di halaman menu
+    let latarAktif = 'neon';           // 'neon' atau 'planet'
+    let modeMain = 'arena';            // 'klasik' (tanpa musuh) atau 'arena' (ada ular musuh)
+    let kecepatanPilihan = 'normal';   // 'santai', 'normal', atau 'cepat'
+    let namaPemain = 'Pemain';
+    const kecepatanAwalMap = { santai: 200, normal: 160, cepat: 120 };
+
+    document.getElementById('highscore').innerText = highScore;
+
+    function bacaRekor() {
+        try {
+            return parseInt(localStorage.getItem('snake_highscore')) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    function simpanRekor(nilai) {
+        try {
+            localStorage.setItem('snake_highscore', nilai);
+        } catch (e) {}
+    }
+
+    let audioCtx = null;
+    let suaraNyala = true;
+    try { suaraNyala = localStorage.getItem('snake_suara') !== 'mati'; } catch (e) {}
+
+    function siapkanSuara() {
+        if (audioCtx) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            return;
+        }
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) audioCtx = new AC();
+        } catch (e) {
+            audioCtx = null;
+        }
+    }
+
+    function nada(frekuensi, durasi, jenis, volume, jeda) {
+        if (!audioCtx || !suaraNyala) return;
+        const t0 = audioCtx.currentTime + (jeda || 0);
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = jenis || 'sine';
+        osc.frequency.setValueAtTime(frekuensi, t0);
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(volume || 0.15, t0 + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + durasi);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t0);
+        osc.stop(t0 + durasi + 0.02);
+    }
+
+    function suaraMakan() {
+        nada(520, 0.08, 'square', 0.1);
+        nada(780, 0.12, 'square', 0.1, 0.07);
+    }
+
+    function suaraBelok() {
+        nada(500, 0.04, 'triangle', 0.06);
+    }
+
+    function suaraLevelUp() {
+        [523, 659, 784, 1047].forEach(function (f, i) {
+            nada(f, 0.16, 'triangle', 0.14, 0.12 + i * 0.12);
+        });
+    }
+
+    function suaraGameOver() {
+        nada(300, 0.25, 'sawtooth', 0.12);
+        nada(220, 0.25, 'sawtooth', 0.12, 0.22);
+        nada(150, 0.5, 'sawtooth', 0.12, 0.44);
+    }
+
+    function gantiSuara() {
+        suaraNyala = !suaraNyala;
+        document.getElementById('btn-suara').innerText = suaraNyala ? '🔊' : '🔇';
+        try { localStorage.setItem('snake_suara', suaraNyala ? 'nyala' : 'mati'); } catch (e) {}
+        if (suaraNyala) {
+            siapkanSuara();
+            nada(660, 0.1, 'triangle', 0.12);
+        }
+    }
+
+    const titikMusuh = [
+        { x: 20, y: 20, dx: 0, dy: 1 },
+        { x: tileCountX - 20, y: tileCountY - 20, dx: 0, dy: -1 },
+        { x: tileCountX - 20, y: 20, dx: -1, dy: 0 },
+        { x: 20, y: tileCountY - 20, dx: 1, dy: 0 }
+    ];
+
+    const warnaMusuh = [
+        ["#ff5a5a", "#ff0000"],
+        ["#ffb347", "#ff8c00"],
+        ["#c77dff", "#9d4edd"],
+        ["#5aff9d", "#00cc66"]
+    ];
+
+    function jumlahMusuhUntukLevel(lv) {
+        if (modeMain === 'klasik') return 0;   // mode Klasik: tidak ada ular musuh
+        return Math.min(1 + Math.floor((lv - 1) / 2), titikMusuh.length);
+    }
+
+    function buatMusuh(x, y, arahX, arahY) {
+        return {
+            badan: [
+                { x: x, y: y },
+                { x: x - arahX, y: y - arahY },
+                { x: x - 2 * arahX, y: y - 2 * arahY }
+            ],
+            dx: arahX,
+            dy: arahY
+        };
+    }
+
+    function tambahMusuhSesuaiLevel() {
+        const target = jumlahMusuhUntukLevel(level);
+        while (enemies.length < target) {
+            let musuhBaru = null;
+            for (let k = 0; k < titikMusuh.length; k++) {
+                const t = titikMusuh[k];
+                const calon = buatMusuh(t.x, t.y, t.dx, t.dy);
+                const jauhDariPemain = Math.abs(t.x - snake[0].x) > 15 || Math.abs(t.y - snake[0].y) > 15;
+                const kosong = calon.badan.every(function (p) { return !posisiTerisi(p.x, p.y); });
+                if (jauhDariPemain && kosong) { musuhBaru = calon; break; }
+            }
+            if (!musuhBaru) break;
+            enemies.push(musuhBaru);
+        }
+    }
+
+    function cariMakananTerdekat(posKepala) {
+        if (foods.length === 0) return null;
+        let terdekat = foods[0];
+        let jarakMin = Math.abs(posKepala.x - terdekat.x) + Math.abs(posKepala.y - terdekat.y);
+        for (let i = 1; i < foods.length; i++) {
+            let d = Math.abs(posKepala.x - foods[i].x) + Math.abs(posKepala.y - foods[i].y);
+            if (d < jarakMin) {
+                jarakMin = d;
+                terdekat = foods[i];
+            }
+        }
+        return terdekat;
+    }
+
+    function gerakkanMusuh(m) {
+        if (Math.random() < 0.3) {
+            let targetFood = cariMakananTerdekat(m.badan[0]);
+            if (targetFood) {
+                if (m.badan[0].x < targetFood.x) { m.dx = 1; m.dy = 0; }
+                else if (m.badan[0].x > targetFood.x) { m.dx = -1; m.dy = 0; }
+                else if (m.badan[0].y < targetFood.y) { m.dx = 0; m.dy = 1; }
+                else if (m.badan[0].y > targetFood.y) { m.dx = 0; m.dy = -1; }
+            }
+        }
+
+        const kepala = { x: m.badan[0].x + m.dx, y: m.badan[0].y + m.dy };
+        if (kepala.x < 0 || kepala.x >= tileCountX || kepala.y < 0 || kepala.y >= tileCountY) {
+            m.dx = -m.dx; m.dy = -m.dy;
+        } else {
+            m.badan.unshift(kepala);
+            let indexMakan = foods.findIndex(f => f.x === kepala.x && f.y === kepala.y);
+            if (indexMakan !== -1) {
+                foods.splice(indexMakan, 1);
+                tambahSatuMakanan();
+            } else {
+                m.badan.pop();
+            }
+        }
+    }
+
+    function initGame() {
+        const startX = Math.floor(tileCountX / 2);
+        const startY = Math.floor(tileCountY / 2);
+        snake = [
+            { x: startX, y: startY },
+            { x: startX - 1, y: startY },
+            { x: startX - 2, y: startY }
+        ];
+        dx = 1;
+        dy = 0;
+        arahTerakhir = { dx: 1, dy: 0 };
+        antreanArah = [];
+
+        score = 0;
+        totalSkor = 0;
+        level = 1;
+        targetScore = 3;
+        gameSpeed = kecepatanAwalMap[kecepatanPilihan] || 160;   // kecepatan sesuai pilihan di menu
+        isGameOver = false;
+        isPaused = false;
+        isLevelUp = false;
+        document.getElementById('game-over-modal').style.display = 'none';
+        document.getElementById('level-up-modal').style.display = 'none';
+        document.getElementById('pause-modal').style.display = 'none';
+
+        obstacles = [];
+        enemies = [];
+        foods = [];
+        tambahMusuhSesuaiLevel();
+        generateObstacles();
+        inisialisasiSemuaMakanan();
+        updateHUD();
+    }
+
+    function updateHUD() {
+        document.getElementById('score').innerText = score;
+        document.getElementById('target').innerText = targetScore;
+        document.getElementById('level').innerText = level;
+        let ikon = '🍎';
+        if (foods.length > 0) {
+            if (foods[0].type === 'apple') ikon = '🍎';
+            else if (foods[0].type === 'chicken') ikon = '🍗';
+            else if (foods[0].type === 'burger') ikon = '🍔';
+            else if (foods[0].type === 'pizza') ikon = '🍕';
+        }
+        document.getElementById('food-icon').innerText = ikon;
+    }
+
+    function togglePause() {
+        if (isGameOver || isLevelUp) return;
+        isPaused = !isPaused;
+        const pauseModal = document.getElementById('pause-modal');
+        if (isPaused) {
+            hentikanLoop();
+            pauseModal.style.display = 'flex';
+        } else {
+            pauseModal.style.display = 'none';
+            mulaiLoop();
+        }
+    }
+
+    function resetGameFromPause() {
+        document.getElementById('pause-modal').style.display = 'none';
+        resetGame();
+    }
+
+    function posisiTerisi(x, y) {
+        return snake.some(p => p.x === x && p.y === y) ||
+               enemies.some(m => m.badan.some(p => p.x === x && p.y === y)) ||
+               obstacles.some(o => o.x === x && o.y === y) ||
+               foods.some(f => f.x === x && f.y === y);
+    }
+
+    function tambahSatuMakanan() {
+        if (foods.length >= maxFoods) return;
+        let x, y;
+        let percobaan = 0;
+        do {
+            x = Math.floor(Math.random() * (tileCountX - 10)) + 5;
+            y = Math.floor(Math.random() * (tileCountY - 10)) + 5;
+            percobaan++;
+        } while (posisiTerisi(x, y) && percobaan < 500);
+
+        const jenisList = ['apple', 'chicken', 'burger', 'pizza'];
+        const jenisPilihan = jenisList[Math.floor(Math.random() * jenisList.length)];
+        foods.push({ x: x, y: y, type: jenisPilihan });
+        updateHUD();
+    }
+
+    function inisialisasiSemuaMakanan() {
+        foods = [];
+        while (foods.length < maxFoods) {
+            tambahSatuMakanan();
+        }
+    }
+
+    function generateObstacles() {
+        obstacles = [];
+        const jumlah = 15 + (level * 3);
+        const kepala = snake[0];
+        let percobaan = 0;
+        while (obstacles.length < jumlah && percobaan < 3000) {
+            percobaan++;
+            const x = Math.floor(Math.random() * (tileCountX - 10)) + 5;
+            const y = Math.floor(Math.random() * (tileCountY - 10)) + 5;
+            const dekatKepala = Math.abs(x - kepala.x) <= 8 && Math.abs(y - kepala.y) <= 8;
+            if (dekatKepala || posisiTerisi(x, y)) continue;
+            obstacles.push({ x: x, y: y });
+        }
+    }
+
+    function main() {
+        if (isGameOver || isPaused) return;
+        update();
+    }
+
+    // ==================== LOOP UTAMA ====================
+    // Logika game tetap berjalan per langkah (sesuai gameSpeed),
+    // tetapi gambar diperbarui di setiap frame layar (sekitar 60 kali per detik)
+    // dengan posisi ular digeser halus di antara dua langkah.
+    function simpanSebelum() {
+        snakeSebelum = snake.map(function (p) { return { x: p.x, y: p.y }; });
+        musuhSebelum = enemies.map(function (m) {
+            return m.badan.map(function (p) { return { x: p.x, y: p.y }; });
+        });
+    }
+
+    function mulaiLoop() {
+        loopJalan = true;
+        waktuFrameTerakhir = performance.now();
+    }
+
+    function hentikanLoop() {
+        loopJalan = false;
+    }
+
+    function loopUtama(waktu) {
+        requestAnimationFrame(loopUtama);
+        if (!loopJalan) { waktuFrameTerakhir = waktu; return; }
+
+        let dt = waktu - waktuFrameTerakhir;
+        waktuFrameTerakhir = waktu;
+        if (dt < 0) dt = 0;
+        if (dt > 250) dt = 250;      // kalau layar sempat berhenti, jangan meloncat jauh
+        akumulator += dt;
+
+        let langkah = 0;
+        while (akumulator >= gameSpeed && langkah < 3 && loopJalan) {
+            akumulator -= gameSpeed;
+            simpanSebelum();
+            main();
+            langkah++;
+        }
+        if (akumulator > gameSpeed) akumulator = gameSpeed;
+
+        draw(loopJalan ? akumulator / gameSpeed : 1);
+    }
+
+    function update() {
+        if (antreanArah.length > 0) {
+            const belok = antreanArah.shift();
+            dx = belok.dx;
+            dy = belok.dy;
+        }
+        arahTerakhir = { dx: dx, dy: dy };
+
+        const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+        if (head.x < 0 || head.x >= tileCountX || head.y < 0 || head.y >= tileCountY) {
+            triggerGameOver(); return;
+        }
+        for (let i = 0; i < snake.length; i++) {
+            if (head.x === snake[i].x && head.y === snake[i].y) { triggerGameOver(); return; }
+        }
+        for (let m = 0; m < enemies.length; m++) {
+            for (let i = 0; i < enemies[m].badan.length; i++) {
+                if (head.x === enemies[m].badan[i].x && head.y === enemies[m].badan[i].y) { triggerGameOver(); return; }
+            }
+        }
+        for (let i = 0; i < obstacles.length; i++) {
+            if (head.x === obstacles[i].x && head.y === obstacles[i].y) { triggerGameOver(); return; }
+        }
+
+        snake.unshift(head);
+
+        let indexMakan = foods.findIndex(f => f.x === head.x && f.y === head.y);
+        if (indexMakan !== -1) {
+            score += 1;
+            totalSkor += 1;
+            suaraMakan();
+            
+            foods.splice(indexMakan, 1);
+            tambahSatuMakanan();
+            
+            updateHUD();
+
+            if (totalSkor > highScore) {
+                highScore = totalSkor;
+                simpanRekor(highScore);
+                document.getElementById('highscore').innerText = highScore;
+            }
+
+            if (score >= targetScore) {
+                triggerLevelUp();
+                return;
+            }
+        } else {
+            snake.pop();
+        }
+
+        for (let n = 0; n < enemies.length; n++) {
+            gerakkanMusuh(enemies[n]);
+        }
+    }
+
+    function triggerLevelUp() {
+        isLevelUp = true;
+        hentikanLoop();
+        suaraLevelUp();
+        const musuhNanti = jumlahMusuhUntukLevel(level + 1);
+        const infoMusuh = document.getElementById('info-musuh');
+        infoMusuh.innerText = musuhNanti > enemies.length ? ('⚠️ Ular musuh bertambah jadi ' + musuhNanti + '!') : '';
+        document.getElementById('next-level').innerText = level + 1;
+        document.getElementById('level-up-modal').style.display = 'flex';
+    }
+
+    function resumeNextLevel() {
+        level += 1;
+        score = 0;
+        targetScore += 1;
+        if (gameSpeed > 50) gameSpeed -= 4;
+        obstacles = [];
+        tambahMusuhSesuaiLevel();
+        antreanArah = [];
+
+        document.getElementById('level-up-modal').style.display = 'none';
+        isLevelUp = false;
+        generateObstacles();
+        inisialisasiSemuaMakanan();
+        updateHUD();
+        simpanSebelum();
+        akumulator = 0;
+        mulaiLoop();
+    }
+
+    let benihAcak = 12345;
+    function acakTetap() {
+        benihAcak = (benihAcak * 16807) % 2147483647;
+        return (benihAcak - 1) / 2147483646;
+    }
+
+    const bintik = [];
+    for (let i = 0; i < 1500; i++) {
+        bintik.push({
+            x: acakTetap() * worldWidth,
+            y: acakTetap() * worldHeight,
+            r: 1 + acakTetap() * 4,
+            terang: 0.05 + acakTetap() * 0.15
+        });
+    }
+
+    bintik.forEach(function (b) { b.fill = "rgba(255, 255, 255, " + b.terang + ")"; });
+
+    const cahayaLatar = [
+        { x: 500, y: 600, r: 500, warna: "0, 210, 211" },
+        { x: 1900, y: 500, r: 600, warna: "130, 80, 255" },
+        { x: 1200, y: 1300, r: 700, warna: "40, 120, 255" },
+        { x: 400, y: 1900, r: 550, warna: "255, 70, 120" },
+        { x: 2000, y: 1800, r: 600, warna: "0, 210, 160" }
+    ];
+
+    // ==================== LATAR 2: PLANET RAKSASA & SABUK ASTEROID ====================
+    // Semua angka acak di sini "tetap" (memakai acakTetap), jadi letaknya selalu sama.
+
+    // bintang-bintang kecil di seluruh dunia (ada putih, biru muda, kuning)
+    const bintangAngkasa = [];
+    for (let i = 0; i < 1800; i++) {
+        const pilih = acakTetap();
+        bintangAngkasa.push({
+            x: acakTetap() * worldWidth,
+            y: acakTetap() * worldHeight,
+            r: 0.6 + acakTetap() * 1.8,
+            warna: pilih < 0.7 ? "255, 255, 255" : (pilih < 0.85 ? "170, 200, 255" : "255, 230, 170"),
+            terang: 0.35 + acakTetap() * 0.6
+        });
+    }
+
+    bintangAngkasa.forEach(function (b) { b.fill = "rgba(" + b.warna + ", " + b.terang + ")"; });
+
+    // sabuk asteroid: cincin batu kecil mengelilingi tengah dunia (hanya hiasan, tidak menabrak)
+    const asteroidSabuk = [];
+    for (let i = 0; i < 320; i++) {
+        const sudut = acakTetap() * Math.PI * 2;
+        const jarak = 620 + acakTetap() * 260;
+        asteroidSabuk.push({
+            x: worldWidth / 2 + Math.cos(sudut) * jarak,
+            y: worldHeight / 2 + Math.sin(sudut) * jarak * 0.8,
+            r: 2 + acakTetap() * 5,
+            sudut: acakTetap() * Math.PI * 2,
+            gelap: acakTetap()
+        });
+    }
+
+    // kabut warna lembut di ruang angkasa
+    const cahayaAngkasa = [
+        { x: 400, y: 500, r: 600, warna: "130, 80, 255" },
+        { x: 1900, y: 1500, r: 700, warna: "40, 120, 255" },
+        { x: 1200, y: 2000, r: 600, warna: "255, 70, 120" },
+        { x: 800, y: 1200, r: 500, warna: "0, 210, 211" }
+    ];
+
+    // angka acak berdasarkan dua bilangan (hasilnya selalu sama untuk bilangan yang sama)
+    function hashAcak(a, b) {
+        const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+        return s - Math.floor(s);
+    }
+
+    // matahari: cahaya besar menyebar + inti putih keemasan
+    function gambarMatahari(c, x, y, r) {
+        const glow = c.createRadialGradient(x, y, r * 0.3, x, y, r * 9);
+        glow.addColorStop(0, "rgba(255, 200, 110, 0.6)");
+        glow.addColorStop(0.25, "rgba(255, 140, 50, 0.22)");
+        glow.addColorStop(1, "rgba(255, 100, 30, 0)");
+        c.fillStyle = glow;
+        c.fillRect(x - r * 9, y - r * 9, r * 18, r * 18);
+        const inti = c.createRadialGradient(x, y, 0, x, y, r);
+        inti.addColorStop(0, "#ffffff");
+        inti.addColorStop(0.6, "#fff3c4");
+        inti.addColorStop(1, "#ffb347");
+        c.fillStyle = inti;
+        c.beginPath();
+        c.arc(x, y, r, 0, Math.PI * 2);
+        c.fill();
+    }
+
+    // planet bercincin: cincin belakang, badan planet berpita awan, lalu cincin depan
+    function gambarPlanetBercincin(px, py, r, c) {
+        c = c || ctx;
+        const miring = -0.35;
+
+        // cincin bagian belakang (setengah akan tertutup planet)
+        c.save();
+        c.translate(px, py);
+        c.rotate(miring);
+        c.lineWidth = r * 0.14;
+        c.strokeStyle = "rgba(241, 217, 162, 0.8)";
+        c.beginPath();
+        c.ellipse(0, 0, r * 1.95, r * 0.45, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.lineWidth = r * 0.08;
+        c.strokeStyle = "rgba(201, 160, 102, 0.85)";
+        c.beginPath();
+        c.ellipse(0, 0, r * 1.6, r * 0.37, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.restore();
+
+        // badan planet (terang di sisi matahari, gelap di sisi seberang)
+        c.save();
+        c.beginPath();
+        c.arc(px, py, r, 0, Math.PI * 2);
+        c.clip();
+        const g = c.createRadialGradient(px - r * 0.4, py + r * 0.35, r * 0.1, px, py, r * 1.1);
+        g.addColorStop(0, "#f2c994");
+        g.addColorStop(0.55, "#c9854a");
+        g.addColorStop(1, "#4a2610");
+        c.fillStyle = g;
+        c.fillRect(px - r, py - r, r * 2, r * 2);
+        c.translate(px, py);
+        c.rotate(miring);
+        for (let i = -6; i <= 6; i++) {
+            c.fillStyle = (i % 2 === 0) ? "rgba(255, 225, 180, 0.16)" : "rgba(110, 55, 20, 0.22)";
+            c.fillRect(-r, i * r * 0.14 - r * 0.05, r * 2, r * 0.09 + (Math.abs(i) % 3) * r * 0.02);
+        }
+        c.fillStyle = "rgba(140, 70, 30, 0.55)";
+        c.beginPath();
+        c.ellipse(r * 0.25, r * 0.2, r * 0.2, r * 0.09, 0, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+
+        // cincin bagian depan (setengah bawah, menutupi planet)
+        c.save();
+        c.translate(px, py);
+        c.rotate(miring);
+        c.lineWidth = r * 0.14;
+        c.strokeStyle = "rgba(241, 217, 162, 0.9)";
+        c.beginPath();
+        c.ellipse(0, 0, r * 1.95, r * 0.45, 0, 0, Math.PI);
+        c.stroke();
+        c.lineWidth = r * 0.08;
+        c.strokeStyle = "rgba(201, 160, 102, 0.9)";
+        c.beginPath();
+        c.ellipse(0, 0, r * 1.6, r * 0.37, 0, 0, Math.PI);
+        c.stroke();
+        c.restore();
+    }
+
+    // planet atau bulan biasa (bola dengan cahaya dari kiri bawah, ke arah matahari)
+    function gambarPlanetKecil(c, x, y, r, terang, gelap) {
+        const g = c.createRadialGradient(x - r * 0.4, y + r * 0.35, r * 0.1, x, y, r * 1.1);
+        g.addColorStop(0, terang);
+        g.addColorStop(1, gelap);
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(x, y, r, 0, Math.PI * 2);
+        c.fill();
+    }
+
+    // batu asteroid bersudut delapan, bentuknya unik tapi tetap sama untuk benih yang sama
+    function gambarBatuAngkasa(c, cx, cy, ukuran, benih) {
+        const sisi = 8;
+        const h = hashAcak(benih, benih * 0.37 + 1);
+        c.beginPath();
+        for (let i = 0; i < sisi; i++) {
+            const sudut = (i / sisi) * Math.PI * 2 + h * 3;
+            const jari = ukuran * (0.46 + 0.14 * hashAcak(benih + i * 3.1, i * 5.7 + benih));
+            const px = cx + Math.cos(sudut) * jari;
+            const py = cy + Math.sin(sudut) * jari;
+            if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+        }
+        c.closePath();
+        c.fillStyle = h > 0.5 ? "#6b645d" : "#5e5852";
+        c.fill();
+        c.strokeStyle = "#2e2a26";
+        c.lineWidth = Math.max(1, ukuran * 0.07);
+        c.stroke();
+        // sisi terang menghadap matahari (kiri bawah) dan sebuah kawah
+        c.fillStyle = "rgba(255, 230, 190, 0.28)";
+        c.beginPath();
+        c.arc(cx - ukuran * 0.15, cy + ukuran * 0.15, ukuran * 0.18, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = "rgba(40, 36, 32, 0.6)";
+        c.beginPath();
+        c.arc(cx + ukuran * 0.15, cy - ukuran * 0.1, ukuran * 0.13, 0, Math.PI * 2);
+        c.fill();
+    }
+
+    // rintangan di latar planet: satu kotak = satu asteroid.
+    // Delapan bentuk batu dibuat sekali di awal, lalu tinggal ditempel (jauh lebih ringan).
+    const spriteBatu = [];
+    function siapkanSpriteBatu() {
+        if (spriteBatu.length > 0) return;
+        for (let i = 0; i < 8; i++) {
+            const cv = document.createElement('canvas');
+            cv.width = 44; cv.height = 44;
+            gambarBatuAngkasa(cv.getContext('2d'), 22, 22, gridSize, i * 17 + 3);
+            spriteBatu.push(cv);
+        }
+    }
+
+    function gambarAsteroid(obs) {
+        siapkanSpriteBatu();
+        const pilihan = Math.floor(hashAcak(obs.x, obs.y) * 8);
+        ctx.drawImage(spriteBatu[pilihan], (obs.x + 0.5) * gridSize - 22, (obs.y + 0.5) * gridSize - 22);
+    }
+
+    // gambar besar (planet dan matahari) dibuat sekali lalu ditempel
+    let spritePlanetBesar = null;
+    let spriteMatahari = null;
+    function siapkanSpriteAngkasa() {
+        if (spritePlanetBesar) return;
+        spritePlanetBesar = document.createElement('canvas');
+        spritePlanetBesar.width = 1280;
+        spritePlanetBesar.height = 680;
+        gambarPlanetBercincin(640, 340, 300, spritePlanetBesar.getContext('2d'));
+        spriteMatahari = document.createElement('canvas');
+        spriteMatahari.width = 540;
+        spriteMatahari.height = 540;
+        gambarMatahari(spriteMatahari.getContext('2d'), 270, 270, 30);
+    }
+
+    // isi lantai hanya bagian yang kelihatan di layar (tidak seluruh dunia)
+    function isiLantai(kiri, atas, kanan, bawah) {
+        const x0 = Math.max(0, kiri), y0 = Math.max(0, atas);
+        const x1 = Math.min(worldWidth, kanan), y1 = Math.min(worldHeight, bawah);
+        if (x1 > x0 && y1 > y0) ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    }
+
+    // cahaya lembut: gradasinya dibuat sekali lalu dipakai ulang
+    function isiGlow(c, kiri, atas, kanan, bawah) {
+        if (!c.g) {
+            c.g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, c.r);
+            c.g.addColorStop(0, "rgba(" + c.warna + ", 0.14)");
+            c.g.addColorStop(1, "rgba(" + c.warna + ", 0)");
+        }
+        const x0 = Math.max(c.x - c.r, kiri), y0 = Math.max(c.y - c.r, atas);
+        const x1 = Math.min(c.x + c.r, kanan), y1 = Math.min(c.y + c.r, bawah);
+        if (x1 > x0 && y1 > y0) {
+            ctx.fillStyle = c.g;
+            ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        }
+    }
+
+    // garis tepi arena hanya digambar kalau layar dekat tepi (efek cahayanya berat)
+    function gambarTepiArena(kiri, atas, kanan, bawah, warnaGaris, warnaCahaya) {
+        if (kiri > 60 && atas > 60 && kanan < worldWidth - 60 && bawah < worldHeight - 60) return;
+        ctx.save();
+        ctx.strokeStyle = warnaGaris;
+        ctx.lineWidth = 6;
+        ctx.shadowColor = warnaCahaya;
+        ctx.shadowBlur = 25;
+        ctx.strokeRect(0, 0, worldWidth, worldHeight);
+        ctx.restore();
+    }
+
+    let ruangGrad = null;
+    let lantaiNeonGrad = null;
+
+    function gambarLatarPlanet(camX, camY) {
+        siapkanSpriteAngkasa();
+        const kiri = -camX, atas = -camY;
+        const kanan = kiri + canvas.width, bawah = atas + canvas.height;
+        const kelihatan = function (x, y, r) {
+            return !(x + r < kiri || x - r > kanan || y + r < atas || y - r > bawah);
+        };
+
+        // lantai ruang angkasa: gelap pekat, sedikit lebih terang di tengah
+        if (!ruangGrad) {
+            ruangGrad = ctx.createRadialGradient(worldWidth / 2, worldHeight / 2, 200, worldWidth / 2, worldHeight / 2, worldWidth * 0.75);
+            ruangGrad.addColorStop(0, "#0b0b22");
+            ruangGrad.addColorStop(1, "#02020a");
+        }
+        ctx.fillStyle = ruangGrad;
+        isiLantai(kiri, atas, kanan, bawah);
+
+        // kabut warna lembut
+        cahayaAngkasa.forEach(function (c) {
+            if (!kelihatan(c.x, c.y, c.r)) return;
+            isiGlow(c, kiri, atas, kanan, bawah);
+        });
+
+        // bintang
+        bintangAngkasa.forEach(function (b) {
+            if (!kelihatan(b.x, b.y, 4)) return;
+            ctx.fillStyle = b.fill;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // matahari menyilaukan di kiri bawah dunia
+        if (kelihatan(260, 2150, 560)) ctx.drawImage(spriteMatahari, 260 - 540, 2150 - 540, 1080, 1080);
+
+        // sabuk asteroid (hiasan)
+        asteroidSabuk.forEach(function (a) {
+            if (!kelihatan(a.x, a.y, a.r + 4)) return;
+            ctx.fillStyle = a.gelap > 0.5 ? "rgba(120, 112, 104, 0.6)" : "rgba(86, 80, 74, 0.6)";
+            ctx.beginPath();
+            ctx.ellipse(a.x, a.y, a.r, a.r * 0.7, a.sudut, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // planet es dan bulan oranye
+        if (kelihatan(620, 820, 90)) gambarPlanetKecil(ctx, 620, 820, 85, "#bfeaff", "#0f3d63");
+        if (kelihatan(2060, 1980, 60)) {
+            gambarPlanetKecil(ctx, 2060, 1980, 55, "#ffc08a", "#5a2a12");
+            ctx.fillStyle = "rgba(90, 40, 18, 0.5)";
+            ctx.beginPath(); ctx.arc(2045, 1968, 9, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(2074, 1990, 6, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // planet raksasa bercincin di kanan atas dunia
+        if (kelihatan(1800, 560, 650)) ctx.drawImage(spritePlanetBesar, 1800 - 640, 560 - 340);
+
+        // tepi arena berwarna oranye menyala
+        gambarTepiArena(kiri, atas, kanan, bawah, "rgba(255, 170, 80, 0.55)", "#ff9a3a");
+    }
+
+    // dispatcher: pilih latar sesuai pilihan di menu
+    function gambarLatar(camX, camY) {
+        if (latarAktif === 'planet') gambarLatarPlanet(camX, camY);
+        else gambarLatarNeon(camX, camY);
+    }
+
+    function gambarLatarNeon(camX, camY) {
+        const kiri = -camX, atas = -camY;
+        const kanan = kiri + canvas.width, bawah = atas + canvas.height;
+
+        if (!lantaiNeonGrad) {
+            lantaiNeonGrad = ctx.createRadialGradient(worldWidth / 2, worldHeight / 2, 200, worldWidth / 2, worldHeight / 2, worldWidth * 0.75);
+            lantaiNeonGrad.addColorStop(0, "#1c1e30");
+            lantaiNeonGrad.addColorStop(1, "#090a12");
+        }
+        ctx.fillStyle = lantaiNeonGrad;
+        isiLantai(kiri, atas, kanan, bawah);
+
+        cahayaLatar.forEach(function (c) {
+            if (c.x + c.r < kiri || c.x - c.r > kanan || c.y + c.r < atas || c.y - c.r > bawah) return;
+            isiGlow(c, kiri, atas, kanan, bawah);
+        });
+
+        bintik.forEach(function (b) {
+            if (b.x < kiri - 5 || b.x > kanan + 5 || b.y < atas - 5 || b.y > bawah + 5) return;
+            ctx.fillStyle = b.fill;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        gambarTepiArena(kiri, atas, kanan, bawah, "rgba(0, 210, 211, 0.6)", "#00d2d3");
+    }
+
+    function kotakBulat(x, y, w, h, r) {
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(x, y, w, h, r);
+        } else {
+            ctx.rect(x, y, w, h);
+        }
+    }
+
+    // ===== SPRITE ULAR: bola bercahaya dibuat SEKALI lalu ditempel =====
+    // Dulu tiap bola digambar dengan efek cahaya (shadowBlur) di setiap frame. Itu sangat berat di HP.
+    const SPRITE_UKURAN = 64;
+    const SPRITE_R = 16;
+    const cacheSpriteBola = {};
+    function ambilSpriteBola(warnaDasar, warnaGlow) {
+        const kunci = warnaDasar + warnaGlow;
+        if (cacheSpriteBola[kunci]) return cacheSpriteBola[kunci];
+        const cv = document.createElement('canvas');
+        cv.width = SPRITE_UKURAN;
+        cv.height = SPRITE_UKURAN;
+        const c = cv.getContext('2d');
+        const tengah = SPRITE_UKURAN / 2;
+        c.shadowColor = warnaGlow;
+        c.shadowBlur = 14;
+        const g = c.createRadialGradient(tengah - SPRITE_R * 0.3, tengah - SPRITE_R * 0.3, SPRITE_R * 0.1, tengah, tengah, SPRITE_R);
+        g.addColorStop(0, "#ffffff");
+        g.addColorStop(1, warnaDasar);
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(tengah, tengah, SPRITE_R, 0, Math.PI * 2);
+        c.fill();
+        cacheSpriteBola[kunci] = cv;
+        return cv;
+    }
+
+    // batas layar (koordinat dunia), diisi di setiap draw()
+    let batasKiri = 0, batasAtas = 0, batasKanan = 0, batasBawah = 0;
+
+    // posisi tiap bagian ular di antara langkah lama dan langkah baru (alpha 0 sampai 1), dalam piksel
+    function titikInterpolasi(bagian, sebelum, alpha) {
+        const hasil = [];
+        for (let i = 0; i < bagian.length; i++) {
+            const c = bagian[i];
+            const p = (sebelum && sebelum[i]) ? sebelum[i] : c;
+            hasil.push({
+                x: (p.x + (c.x - p.x) * alpha + 0.5) * gridSize,
+                y: (p.y + (c.y - p.y) * alpha + 0.5) * gridSize
+            });
+        }
+        return hasil;
+    }
+
+    function gambarUlar(titik, dirX, dirY, warnaDasar, warnaGlow) {
+        const sprite = ambilSpriteBola(warnaDasar, warnaGlow);
+        for (let i = titik.length - 1; i >= 1; i--) {
+            const px = titik[i].x, py = titik[i].y;
+            if (px < batasKiri || px > batasKanan || py < batasAtas || py > batasBawah) continue;
+            const t = i / (titik.length - 1);
+            const r = gridSize * 0.75 * (1 - 0.3 * t);
+            const ukuran = SPRITE_UKURAN * (r / SPRITE_R);
+            ctx.drawImage(sprite, px - ukuran / 2, py - ukuran / 2, ukuran, ukuran);
+        }
+
+        const hx = titik[0].x, hy = titik[0].y;
+        if (hx < batasKiri || hx > batasKanan || hy < batasAtas || hy > batasBawah) return;
+        const rk = gridSize * 0.85;
+        const ukuranKepala = SPRITE_UKURAN * (rk / SPRITE_R);
+        ctx.drawImage(sprite, hx - ukuranKepala / 2, hy - ukuranKepala / 2, ukuranKepala, ukuranKepala);
+
+        // arah kepala dihitung dari posisi yang bergerak halus, jadi berbelok pelan-pelan
+        let ax = dirX, ay = dirY;
+        if (titik.length > 1) {
+            const vx = hx - titik[1].x, vy = hy - titik[1].y;
+            const pj = Math.sqrt(vx * vx + vy * vy);
+            if (pj > 0.001) { ax = vx / pj; ay = vy / pj; }
+        }
+
+        const sx = -ay, sy = ax;
+        [-1, 1].forEach(function (sisi) {
+            const ex = hx + ax * 5 + sx * 5.5 * sisi;
+            const ey = hy + ay * 5 + sy * 5.5 * sisi;
+            ctx.fillStyle = "#ffffff";
+            ctx.strokeStyle = "#23a6d3";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(ex, ey, 5.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = "#000000";
+            ctx.beginPath();
+            ctx.arc(ex + ax * 1.8, ey + ay * 1.8, 2.6, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        ctx.fillStyle = "rgb(0,0,0)";
+        ctx.beginPath();
+        ctx.ellipse(hx + ax * rk * 0.75, hy + ay * rk * 0.75, 2.5, 5, Math.atan2(ay, ax), 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // nama pemain yang melayang di atas kepala ular
+    function gambarNama(teks, x, y) {
+        ctx.save();
+        ctx.font = "bold 13px 'Segoe UI', Tahoma, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
+        ctx.strokeText(teks, x, y);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(teks, x, y);
+        ctx.restore();
+    }
+
+    // gambar makanan (kode asli kamu), digambar ke kanvas kecil mana pun
+    function gambarMakananKe(c, jenis, fx, fy) {
+        const radius = gridSize / 2.3;
+
+        if (jenis === 'apple') {
+            let gradient = c.createRadialGradient(fx - 2, fy - 2, 2, fx, fy, radius);
+            gradient.addColorStop(0, '#ff6b81');
+            gradient.addColorStop(1, '#ff4757');
+            c.fillStyle = gradient;
+            c.beginPath(); c.arc(fx, fy + 1, radius, 0, Math.PI * 2); c.fill();
+
+            c.strokeStyle = "#845332"; c.lineWidth = 2;
+            c.beginPath(); c.moveTo(fx, fy - radius + 2);
+            c.quadraticCurveTo(fx + 3, fy - radius - 4, fx + 5, fy - radius - 2); c.stroke();
+
+            c.fillStyle = "#2ed573";
+            c.beginPath(); c.ellipse(fx + 5, fy - radius - 1, 3, 1.5, Math.PI / 4, 0, Math.PI * 2); c.fill();
+        } else if (jenis === 'chicken') {
+            c.strokeStyle = "#f1f2f6"; c.lineWidth = 3.5; c.lineCap = "round";
+            c.beginPath(); c.moveTo(fx - 6, fy + 6); c.lineTo(fx + 6, fy - 6); c.stroke();
+
+            let chickenGrad = c.createRadialGradient(fx, fy, 2, fx, fy, radius);
+            chickenGrad.addColorStop(0, '#ffa502'); chickenGrad.addColorStop(1, '#e17055');
+            c.fillStyle = chickenGrad;
+            c.beginPath(); c.arc(fx + 2, fy + 2, radius * 0.9, 0, Math.PI * 2); c.fill();
+        } else if (jenis === 'burger') {
+            c.fillStyle = '#e1b12c';
+            c.beginPath(); c.arc(fx, fy + 3, radius * 0.9, 0, Math.PI); c.fill();
+            c.fillStyle = '#715842';
+            c.fillRect(fx - radius * 0.8, fy, radius * 1.6, 4);
+            c.fillStyle = '#2ed573';
+            c.fillRect(fx - radius * 0.85, fy - 3, radius * 1.7, 3);
+            c.fillStyle = '#f39c12';
+            c.beginPath(); c.arc(fx, fy - 2, radius * 0.85, Math.PI, Math.PI * 2); c.fill();
+        } else if (jenis === 'pizza') {
+            c.fillStyle = '#f1c40f';
+            c.beginPath();
+            c.moveTo(fx, fy - radius);
+            c.lineTo(fx + radius, fy + radius);
+            c.lineTo(fx - radius, fy + radius);
+            c.closePath();
+            c.fill();
+            c.fillStyle = '#c0392b';
+            c.beginPath(); c.arc(fx, fy + 2, 3, 0, Math.PI * 2); c.fill();
+            c.beginPath(); c.arc(fx - 3, fy + 6, 2.5, 0, Math.PI * 2); c.fill();
+        }
+    }
+
+    // tiap jenis makanan digambar sekali ke kanvas kecil, lalu tinggal ditempel
+    const spriteMakananCache = {};
+    function ambilSpriteMakanan(jenis) {
+        if (spriteMakananCache[jenis]) return spriteMakananCache[jenis];
+        const cv = document.createElement('canvas');
+        cv.width = 40;
+        cv.height = 40;
+        gambarMakananKe(cv.getContext('2d'), jenis, 20, 20);
+        spriteMakananCache[jenis] = cv;
+        return cv;
+    }
+
+    // alpha = seberapa jauh ular sudah bergerak menuju langkah berikutnya (0 sampai 1)
+    function draw(alpha) {
+        if (alpha === undefined) alpha = 1;
+
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const titikPemain = titikInterpolasi(snake, snakeSebelum, alpha);
+        const cameraX = Math.round(canvas.width / 2 - titikPemain[0].x);
+        const cameraY = Math.round(canvas.height / 2 - titikPemain[0].y);
+        batasKiri = -cameraX - 40;
+        batasAtas = -cameraY - 40;
+        batasKanan = -cameraX + canvas.width + 40;
+        batasBawah = -cameraY + canvas.height + 40;
+
+        ctx.save();
+        ctx.translate(cameraX, cameraY);
+
+        gambarLatar(cameraX, cameraY);
+
+        obstacles.forEach(obs => {
+            const ox = (obs.x + 0.5) * gridSize, oy = (obs.y + 0.5) * gridSize;
+            if (ox < batasKiri || ox > batasKanan || oy < batasAtas || oy > batasBawah) return;
+            if (latarAktif === 'planet') { gambarAsteroid(obs); return; }
+            ctx.fillStyle = "#2c2d44";
+            kotakBulat(obs.x * gridSize + 2, obs.y * gridSize + 2, gridSize - 4, gridSize - 4, 4);
+            ctx.fill();
+        });
+
+        foods.forEach(f => {
+            const fx = (f.x + 0.5) * gridSize, fy = (f.y + 0.5) * gridSize;
+            if (fx < batasKiri || fx > batasKanan || fy < batasAtas || fy > batasBawah) return;
+            ctx.drawImage(ambilSpriteMakanan(f.type), fx - 20, fy - 20);
+        });
+
+        enemies.forEach(function (m, n) {
+            const w = warnaMusuh[n % warnaMusuh.length];
+            gambarUlar(titikInterpolasi(m.badan, musuhSebelum[n], alpha), m.dx, m.dy, w[0], w[1]);
+        });
+        gambarUlar(titikPemain, dx, dy, "#cfe0ff", "#4fc3ff");
+        gambarNama(namaPemain, titikPemain[0].x, titikPemain[0].y - 30);
+
+        ctx.restore();
+
+        if (!vigGrad) {
+            vigGrad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.25, canvas.width / 2, canvas.height / 2, canvas.height * 0.75);
+            vigGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+            vigGrad.addColorStop(1, "rgba(0, 0, 0, 0.45)");
+        }
+        ctx.fillStyle = vigGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function triggerGameOver() {
+        isGameOver = true;
+        hentikanLoop();
+        suaraGameOver();
+        document.getElementById('final-nama').innerText = namaPemain;
+        document.getElementById('final-score').innerText = totalSkor;
+        document.getElementById('game-over-modal').style.display = 'flex';
+    }
+
+    function resetGame() {
+        initGame();
+        simpanSebelum();
+        akumulator = 0;
+        draw(1);
+        mulaiLoop();
+    }
+
+    let touchStartX = 0, touchStartY = 0;
+    window.addEventListener('touchstart', e => {
+        touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    window.addEventListener('touchend', e => {
+        siapkanSuara();
+        if (!touchStartX || !touchStartY || diMenu || isPaused || isGameOver || isLevelUp) return;
+        let diffX = e.changedTouches[0].clientX - touchStartX;
+        let diffY = e.changedTouches[0].clientY - touchStartY;
+        touchStartX = 0; touchStartY = 0;
+
+        let arahBaru = null;
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX > 30) arahBaru = { dx: 1, dy: 0 };
+            else if (diffX < -30) arahBaru = { dx: -1, dy: 0 };
+        } else {
+            if (diffY > 30) arahBaru = { dx: 0, dy: 1 };
+            else if (diffY < -30) arahBaru = { dx: 0, dy: -1 };
+        }
+        if (!arahBaru) return;
+
+        const dasar = antreanArah.length > 0 ? antreanArah[antreanArah.length - 1] : arahTerakhir;
+        const berlawanan = (arahBaru.dx === -dasar.dx && arahBaru.dy === -dasar.dy);
+        const sama = (arahBaru.dx === dasar.dx && arahBaru.dy === dasar.dy);
+        if (berlawanan || sama) return;
+
+        if (antreanArah.length < 2) {
+            antreanArah.push(arahBaru);
+            suaraBelok();
+        }
+    }, { passive: true });
+
+    // ==================== HALAMAN MENU: NAMA, LATAR, MODE ====================
+    const namaLatarTeks = { neon: "Lantai Neon", planet: "Planet Raksasa" };
+    const namaModeTeks = { klasik: "Klasik", arena: "Arena" };
+    const namaKecepatanTeks = { santai: "Santai", normal: "Normal", cepat: "Cepat" };
+
+    // nama acak, paling banyak 12 huruf supaya muat
+    function namaAcak() {
+        const depan = ['Naga', 'Ular', 'Elang', 'Singa', 'Kilat', 'Api', 'Es', 'Badai'];
+        const belakang = ['Liar', 'Sakti', 'Gesit', 'Hitam', 'Emas', 'Petir', 'Biru', 'Raja'];
+        return depan[Math.floor(Math.random() * depan.length)] + ' ' + belakang[Math.floor(Math.random() * belakang.length)];
+    }
+
+    function muatPengaturan() {
+        namaPemain = namaAcak();   // kalau belum pernah menyimpan, mulai dengan nama acak
+        try {
+            const l = localStorage.getItem('snake_latar');
+            if (l === 'neon' || l === 'planet') latarAktif = l;
+            const m = localStorage.getItem('snake_mode');
+            if (m === 'klasik' || m === 'arena') modeMain = m;
+            const k = localStorage.getItem('snake_kecepatan');
+            if (k === 'santai' || k === 'normal' || k === 'cepat') kecepatanPilihan = k;
+            const n = localStorage.getItem('snake_nama');
+            if (n) namaPemain = n;
+        } catch (e) {}
+    }
+
+    function simpanPengaturan() {
+        try {
+            localStorage.setItem('snake_latar', latarAktif);
+            localStorage.setItem('snake_mode', modeMain);
+            localStorage.setItem('snake_kecepatan', kecepatanPilihan);
+            localStorage.setItem('snake_nama', namaPemain);
+        } catch (e) {}
+    }
+
+    // bunyi klik kecil saat menekan pilihan di menu
+    function klikMenu() {
+        siapkanSuara();
+        nada(620, 0.05, 'triangle', 0.07);
+    }
+
+    function segarkanMenu() {
+        ['neon', 'planet'].forEach(function (n) {
+            document.getElementById('kartu-' + n).classList.toggle('aktif', latarAktif === n);
+        });
+        ['klasik', 'arena'].forEach(function (m) {
+            document.getElementById('mode-' + m).classList.toggle('aktif', modeMain === m);
+        });
+        ['santai', 'normal', 'cepat'].forEach(function (k) {
+            document.getElementById('kec-' + k).classList.toggle('aktif', kecepatanPilihan === k);
+        });
+        document.getElementById('saklar-suara').classList.toggle('nyala', suaraNyala);
+        document.getElementById('menu').setAttribute('data-latar', latarAktif);
+        document.getElementById('menu-rekor').innerText = highScore;
+        document.getElementById('ringkasan').innerText =
+            namaLatarTeks[latarAktif] + '  •  ' + namaModeTeks[modeMain] + '  •  ' + namaKecepatanTeks[kecepatanPilihan];
+    }
+
+    function ubahNama() {
+        const v = document.getElementById('input-nama').value.trim();
+        namaPemain = v || 'Pemain';
+    }
+
+    function acakNama() {
+        klikMenu();
+        namaPemain = namaAcak();
+        document.getElementById('input-nama').value = namaPemain;
+        simpanPengaturan();
+    }
+
+    function pilihLatar(n) {
+        klikMenu();
+        latarAktif = n;
+        simpanPengaturan();
+        segarkanMenu();
+    }
+
+    function pilihMode(m) {
+        klikMenu();
+        modeMain = m;
+        simpanPengaturan();
+        segarkanMenu();
+    }
+
+    function pilihKecepatan(k) {
+        klikMenu();
+        kecepatanPilihan = k;
+        simpanPengaturan();
+        segarkanMenu();
+    }
+
+    function tampilkanMenu() {
+        diMenu = true;
+        hentikanLoop();
+        document.getElementById('game-over-modal').style.display = 'none';
+        document.getElementById('level-up-modal').style.display = 'none';
+        document.getElementById('pause-modal').style.display = 'none';
+        document.querySelector('.hud').style.display = 'none';
+        document.getElementById('input-nama').value = namaPemain;
+        segarkanMenu();
+        const menu = document.getElementById('menu');
+        menu.style.display = 'flex';
+        menu.scrollTop = 0;
+    }
+
+    function kembaliKeMenu() {
+        klikMenu();
+        tampilkanMenu();
+    }
+
+    function mulaiGame() {
+        siapkanSuara();
+        ubahNama();
+        simpanPengaturan();
+        diMenu = false;
+        document.getElementById('menu').style.display = 'none';
+        document.querySelector('.hud').style.display = 'flex';
+        resetGame();
+    }
+
+    // ---------- gambar pratinjau latar di kartu menu ----------
+    // ular kecil untuk pratinjau: titik pertama = kepala
+    function ularMini(c, titik, glow) {
+        for (let i = titik.length - 1; i >= 1; i--) {
+            const t = i / (titik.length - 1);
+            const r = 8 * (1 - 0.3 * t);
+            const x = titik[i][0], y = titik[i][1];
+            c.save();
+            c.shadowColor = glow;
+            c.shadowBlur = 10;
+            const g = c.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+            g.addColorStop(0, "#ffffff");
+            g.addColorStop(1, "#cfe0ff");
+            c.fillStyle = g;
+            c.beginPath();
+            c.arc(x, y, r, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+        }
+        const hx = titik[0][0], hy = titik[0][1];
+        let dirX = hx - titik[1][0], dirY = hy - titik[1][1];
+        const pj = Math.sqrt(dirX * dirX + dirY * dirY);
+        dirX /= pj; dirY /= pj;
+        const rk = 10.5;
+        c.save();
+        c.shadowColor = glow;
+        c.shadowBlur = 12;
+        const gk = c.createRadialGradient(hx - rk * 0.3, hy - rk * 0.3, rk * 0.1, hx, hy, rk);
+        gk.addColorStop(0, "#ffffff");
+        gk.addColorStop(1, "#cfe0ff");
+        c.fillStyle = gk;
+        c.beginPath();
+        c.arc(hx, hy, rk, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+        const sx = -dirY, sy = dirX;
+        [-1, 1].forEach(function (sisi) {
+            const ex = hx + dirX * 4.2 + sx * 4.6 * sisi;
+            const ey = hy + dirY * 4.2 + sy * 4.6 * sisi;
+            c.fillStyle = "#ffffff";
+            c.strokeStyle = "#23a6d3";
+            c.lineWidth = 1.2;
+            c.beginPath();
+            c.arc(ex, ey, 3.8, 0, Math.PI * 2);
+            c.fill();
+            c.stroke();
+            c.fillStyle = "#000000";
+            c.beginPath();
+            c.arc(ex + dirX * 1.3, ey + dirY * 1.3, 1.9, 0, Math.PI * 2);
+            c.fill();
+        });
+    }
+
+    function gambarPratinjau() {
+        // angka acak kecil khusus pratinjau
+        let s = 7;
+        function acakKecil() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }
+
+        // ----- pratinjau Lantai Neon -----
+        let cv = document.getElementById('pratinjau-neon');
+        let c = cv.getContext('2d');
+        let w = cv.width, h = cv.height;
+        const lantai = c.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.7);
+        lantai.addColorStop(0, "#1c1e30");
+        lantai.addColorStop(1, "#090a12");
+        c.fillStyle = lantai;
+        c.fillRect(0, 0, w, h);
+        [[50, 40, 100, "0, 210, 211"], [260, 50, 110, "130, 80, 255"], [170, 140, 120, "40, 120, 255"], [30, 135, 90, "255, 70, 120"]].forEach(function (L) {
+            const g = c.createRadialGradient(L[0], L[1], 0, L[0], L[1], L[2]);
+            g.addColorStop(0, "rgba(" + L[3] + ", 0.22)");
+            g.addColorStop(1, "rgba(" + L[3] + ", 0)");
+            c.fillStyle = g;
+            c.fillRect(L[0] - L[2], L[1] - L[2], L[2] * 2, L[2] * 2);
+        });
+        for (let i = 0; i < 60; i++) {
+            c.fillStyle = "rgba(255, 255, 255, " + (0.05 + acakKecil() * 0.15) + ")";
+            c.beginPath();
+            c.arc(acakKecil() * w, acakKecil() * h, 1 + acakKecil() * 2.5, 0, Math.PI * 2);
+            c.fill();
+        }
+        c.fillStyle = "#2c2d44";
+        [[40, 100], [255, 112], [150, 24]].forEach(function (p) {
+            c.beginPath();
+            if (c.roundRect) c.roundRect(p[0], p[1], 18, 18, 4); else c.rect(p[0], p[1], 18, 18);
+            c.fill();
+        });
+        // apel kecil
+        c.fillStyle = "#ff4757";
+        c.beginPath(); c.arc(270, 48, 8, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "#2ed573";
+        c.beginPath(); c.ellipse(276, 38, 4, 2, Math.PI / 4, 0, Math.PI * 2); c.fill();
+        ularMini(c, [[236, 78], [218, 84], [200, 90], [182, 92], [164, 86], [148, 78], [134, 78], [120, 84]], "#4fc3ff");
+        c.strokeStyle = "rgba(0, 210, 211, 0.6)";
+        c.lineWidth = 3;
+        c.strokeRect(1.5, 1.5, w - 3, h - 3);
+
+        // ----- pratinjau Planet Raksasa -----
+        cv = document.getElementById('pratinjau-planet');
+        c = cv.getContext('2d');
+        w = cv.width; h = cv.height;
+        const ruang = c.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.7);
+        ruang.addColorStop(0, "#0b0b22");
+        ruang.addColorStop(1, "#02020a");
+        c.fillStyle = ruang;
+        c.fillRect(0, 0, w, h);
+        [[60, 40, 100, "130, 80, 255"], [250, 125, 110, "40, 120, 255"]].forEach(function (L) {
+            const g = c.createRadialGradient(L[0], L[1], 0, L[0], L[1], L[2]);
+            g.addColorStop(0, "rgba(" + L[3] + ", 0.2)");
+            g.addColorStop(1, "rgba(" + L[3] + ", 0)");
+            c.fillStyle = g;
+            c.fillRect(L[0] - L[2], L[1] - L[2], L[2] * 2, L[2] * 2);
+        });
+        for (let i = 0; i < 90; i++) {
+            c.fillStyle = "rgba(255, 255, 255, " + (0.3 + acakKecil() * 0.6) + ")";
+            c.beginPath();
+            c.arc(acakKecil() * w, acakKecil() * h, 0.5 + acakKecil() * 1.1, 0, Math.PI * 2);
+            c.fill();
+        }
+        gambarMatahari(c, 12, 140, 11);
+        for (let i = 0; i < 30; i++) {
+            const t = i / 30;
+            const ax = 30 + t * 270 + (acakKecil() - 0.5) * 40;
+            const ay = 140 - t * 70 + (acakKecil() - 0.5) * 30;
+            c.fillStyle = acakKecil() > 0.5 ? "rgba(120, 112, 104, 0.7)" : "rgba(86, 80, 74, 0.7)";
+            c.beginPath();
+            c.ellipse(ax, ay, 1.5 + acakKecil() * 2.5, 1.2 + acakKecil() * 1.5, acakKecil() * 3, 0, Math.PI * 2);
+            c.fill();
+        }
+        gambarPlanetBercincin(250, 40, 34, c);
+        gambarBatuAngkasa(c, 60, 45, 26, 3);
+        gambarBatuAngkasa(c, 112, 118, 28, 7);
+        gambarBatuAngkasa(c, 286, 122, 24, 11);
+        ularMini(c, [[230, 98], [212, 104], [194, 110], [176, 110], [158, 104], [142, 98], [128, 98], [114, 104]], "#ffe9a8");
+        c.strokeStyle = "rgba(255, 170, 80, 0.55)";
+        c.lineWidth = 3;
+        c.strokeRect(1.5, 1.5, w - 3, h - 3);
+    }
+
+    // ---------- mulai: tampilkan halaman menu (game belum jalan) ----------
+    muatPengaturan();
+    gambarPratinjau();
+    tampilkanMenu();
+    document.getElementById('btn-suara').innerText = suaraNyala ? '🔊' : '🔇';
+    window.addEventListener('click', siapkanSuara);
+    requestAnimationFrame(loopUtama);
+</script>
+</body>
+</html>
